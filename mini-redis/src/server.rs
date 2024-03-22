@@ -14,10 +14,15 @@ pub async fn run(listener: TcpListener) {
 }
 impl Listener {
     // 开启监听
-    async fn listen(&mut self) {
+    async fn listen(&mut self) -> crate::Result<TcpStream> {
         loop {
-            let socket = self.accept().await.unwrap();
-            let conn = Connection::new(socket);
+            let socket = self.accept().await?;
+            let mut handler = Handler {
+                connection: Connection::new(socket),
+            };
+            tokio::spawn(async move {
+                handler.handle().await;
+            });
         }
     }
     async fn accept(&mut self) -> crate::Result<TcpStream> {
@@ -25,5 +30,18 @@ impl Listener {
             Ok((socket, _)) => return Ok(socket),
             Err(err) => return Err(err.into()),
         };
+    }
+}
+
+struct Handler {
+    connection: Connection,
+}
+impl Handler {
+    async fn handle(&mut self) {
+        loop {
+            let maybe_frame = tokio::select! {
+               res =  self.connection.read_frame() => res,
+            };
+        }
     }
 }
